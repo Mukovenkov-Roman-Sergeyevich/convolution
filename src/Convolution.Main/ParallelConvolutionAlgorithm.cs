@@ -1,19 +1,28 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Convolution.Main;
 
 public static class ParallelConvolutionAlgorithm
 {
-    private static void ProcessRowOptimized(Image<Rgb24> sourceImage, Image<Rgb24> resultImage, double[,] kernel, int y)
+    private static ThreadLocal<Rgb24[]> _rowBuffer = null!;
+    private static void InitializeThreadLocalBuffer(double[,] kernel, int width)
+    {
+        _rowBuffer?.Dispose(); 
+        
+        int kernelSize = kernel.GetLength(0);
+        _rowBuffer = new ThreadLocal<Rgb24[]>(() => new Rgb24[kernelSize * width]);
+    }
+
+    private static void ProcessRowOptimized(Image<Rgb24> sourceImage, Image<Rgb24> resultImage, double[,] kernel, int y, Rgb24[] rowBuffer)
     {
         int width = sourceImage.Width;
         int height = sourceImage.Height;
         int kernelSize = kernel.GetLength(0);
         int kernelOffset = kernelSize / 2;
         
-        var rowBuffer = new Rgb24[kernelSize * width];
 
         for (int i = 0; i < kernelSize; i++)
         {
@@ -53,9 +62,12 @@ public static class ParallelConvolutionAlgorithm
         int height = sourceImage.Height;
         var resultImage = new Image<Rgb24>(width, height);
 
+        InitializeThreadLocalBuffer(kernel, width);
+
         Parallel.For(0, height, y =>
         {
-            ProcessRowOptimized(sourceImage, resultImage, kernel, y);
+            var buffer = _rowBuffer.Value!;
+            ProcessRowOptimized(sourceImage, resultImage, kernel, y, buffer);
         });
 
         return resultImage;
@@ -110,11 +122,14 @@ public static class ParallelConvolutionAlgorithm
         
         var tiles = Partitioner.Create(0, height);
 
+        InitializeThreadLocalBuffer(kernel, width);
+
         Parallel.ForEach(tiles, range =>
         {
+            var buffer = _rowBuffer.Value!;
             for (int y = range.Item1; y < range.Item2; y++)
             {
-                ProcessRowOptimized(sourceImage, resultImage, kernel, y);
+                ProcessRowOptimized(sourceImage, resultImage, kernel, y, buffer);
             }
         });
         

@@ -1,4 +1,4 @@
-# C# Image Convolution
+# C# Image Convolution, Задача 1
 
 Алгоритм свёртки изображений на C# .NET. Выполнены и версия с цветом, и с градацией серого. В бенчмарке используются `Identity`, `EdgeDetection`, `Sharpen`, `BoxBlur`, но есть и `Zero`, `SobelX` и `SobelY` (для проверки ассиметричных), `Laplacian3x3`, `Laplacian5x5`. Для бенчмаркинга используется `BenchmarkDotNet`, для графиков его функциональность в генерации R кода. Для загрузки изображений `SixLabors`. Для тестов `Xunit` с покрытием кода от `coverlet` и `reportgenerator`. Проверяется полное соответствие изображений после свёртки с помощью библиотеки `Magick.NET`.
 
