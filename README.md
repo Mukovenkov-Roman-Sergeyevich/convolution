@@ -1,2 +1,0 @@
-# convolution
-C# solution

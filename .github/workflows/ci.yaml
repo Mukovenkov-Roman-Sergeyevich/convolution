@@ -1,0 +1,56 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x' 
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run tests with code coverage
+        run: >
+          dotnet test 
+          --configuration Release
+          --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults/
+
+      - name: Create coverage report
+        run: >
+          dotnet reportgenerator
+          -reports:"./TestResults/*/coverage.cobertura.xml"
+          -targetdir:"CoverageReport"
+          -reporttypes:Html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: CoverageReport
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
