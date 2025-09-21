@@ -1,7 +1,7 @@
 ﻿using CommandLine;
 using Convolution.Main;
 
-public class Program
+public class Cli
 {
     public class Options
     {
@@ -10,6 +10,10 @@ public class Program
 
         [Option('o', "output", Required = true, HelpText = "Output image path")]
         public required string OutputFile { get; set; }
+
+        [Option('k', "kernel", Required = false, Default = "EdgeDetection", 
+        HelpText = "Name of kernel\nAvailable: Identity, EdgeDetection, Sharpen, BoxBlur.")]
+        public required string Kernel { get; set; }
     }
 
     public static void Main(string[] args)
@@ -22,11 +26,13 @@ public class Program
         try
         {
             var processor = new ImageProcessor();
-            processor.ApplyGrayscale(opts.InputFile, opts.OutputFile);
+            processor.ProcessImage(opts.InputFile, opts.OutputFile, opts.Kernel);
         }
         catch (Exception ex)
         {
+            Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"Error: {ex.Message}");
+            Console.ResetColor();
         }
     }
 }
