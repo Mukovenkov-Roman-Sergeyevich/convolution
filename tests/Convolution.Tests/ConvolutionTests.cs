@@ -7,7 +7,7 @@ using SixLabors.ImageSharp.Processing;
 using System;
 using System.Diagnostics;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Linq;
 using Xunit;
 
 namespace Convolution.Tests;
@@ -287,26 +287,58 @@ public class ConvolutionTests
             new { Width = 1000, Height = 1000}
         };
 
-        var scenarios = new[]
+        var implementations = new[]
+        {
+            new {
+                Name = "Grayscale Sequential",
+                IsColorOnly = false,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.Apply((Image<L8>)img, k))
+            },
+            new {
+                Name = "Color Sequential",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.Apply((Image<Rgb24>)img, k))
+            },
+            new {
+                Name = "Color Optimized",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.ApplyOptimized((Image<Rgb24>)img, k))
+            },
+            new {
+                Name = "Parallel by Row",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ParallelConvolutionAlgorithm.ApplyParallelByRow((Image<Rgb24>)img, k))
+            },
+            new {
+                Name = "Parallel by Column",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ParallelConvolutionAlgorithm.ApplyParallelByColumn((Image<Rgb24>)img, k))
+            },
+            new {
+                Name = "Parallel by Tile",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ParallelConvolutionAlgorithm.ApplyParallelByTile((Image<Rgb24>)img, k))
+            },
+            new {
+                Name = "Parallel by Pixel",
+                IsColorOnly = true,
+                ApplyFunc = (Func<object,double[,],object>)((img,k) => ParallelConvolutionAlgorithm.ApplyParallelByPixel((Image<Rgb24>)img, k))
+            }
+        };
+
+        var imageTypes = new[]
         {
             new {
                 Name = "Grayscale",
+                IsColor = false,
                 Generator = (Func<int,int,IDisposable>)((w,h) => ImageGenerator.CreateGrayscaleImage(w,h)),
-                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.Apply((Image<L8>)img, k)),
                 AssertEqualFunc = (Action<object,object>)((img1,img2) => AssertImagesAreEqual((Image<L8>)img1, (Image<L8>)img2)),
                 AssertSimilarFunc = (Action<object,object>)((img1,img2) => AssertImagesAreSimilar((Image<L8>)img1, (Image<L8>)img2))
             },
             new {
                 Name = "Color",
+                IsColor = true,
                 Generator = (Func<int,int,IDisposable>)((w,h) => ImageGenerator.CreateColorImage(w,h)),
-                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.Apply((Image<Rgb24>)img, k)),
-                AssertEqualFunc = (Action<object,object>)((img1,img2) => AssertImagesAreEqual((Image<Rgb24>)img1, (Image<Rgb24>)img2)),
-                AssertSimilarFunc = (Action<object,object>)((img1,img2) => AssertImagesAreSimilar((Image<Rgb24>)img1, (Image<Rgb24>)img2))
-            },
-            new {
-                Name = "Color Optimized",
-                Generator = (Func<int,int,IDisposable>)((w,h) => ImageGenerator.CreateColorImage(w,h)),
-                ApplyFunc = (Func<object,double[,],object>)((img,k) => ConvolutionAlgorithm.ApplyOptimized((Image<Rgb24>)img, k)),
                 AssertEqualFunc = (Action<object,object>)((img1,img2) => AssertImagesAreEqual((Image<Rgb24>)img1, (Image<Rgb24>)img2)),
                 AssertSimilarFunc = (Action<object,object>)((img1,img2) => AssertImagesAreSimilar((Image<Rgb24>)img1, (Image<Rgb24>)img2))
             }
@@ -314,9 +346,21 @@ public class ConvolutionTests
 
         foreach (var dim in dimensions)
         {
-            foreach (var scenario in scenarios)
+            foreach (var impl in implementations)
             {
-                yield return new ConvolutionTestCase(dim.Width, dim.Height, scenario.Name, scenario.Generator, scenario.ApplyFunc, scenario.AssertEqualFunc, scenario.AssertSimilarFunc);
+                foreach (var imgType in imageTypes)
+                {
+                    if (impl.IsColorOnly && !imgType.IsColor) continue;
+                    if (imgType.IsColor && impl.Name.Contains("Grayscale")) continue;
+
+                    yield return new ConvolutionTestCase(
+                        dim.Width, dim.Height,
+                        impl.Name,
+                        imgType.Generator,
+                        impl.ApplyFunc,
+                        imgType.AssertEqualFunc,
+                        imgType.AssertSimilarFunc);
+                }
             }
         }
     }
@@ -392,8 +436,6 @@ public class ConvolutionTests
         return data;
     }
 
-    // Parametrized module tests
-
     [Theory]
     [MemberData(nameof(GetConvolutionTestCases))]
     public void ApplyIdentityKernel_ReturnsIdenticalImage(ConvolutionTestCase testCase)
@@ -438,7 +480,7 @@ public class ConvolutionTests
     [Theory]
     [MemberData(nameof(GetValidationTestCases))]
     public void ApplyPaddedKernel_ReturnsSameResultAsOriginal(
-        ConvolutionTestCase testCase, 
+        ConvolutionTestCase testCase,
         string kernelName,
         double[,] originalKernel)
     {
@@ -523,5 +565,23 @@ public class ConvolutionTests
         testCase.AssertEquality(myResult, magickNetResult);
 
         magickNetResult.Dispose();
+    }
+
+    [Theory]
+    [MemberData(nameof(GetValidationTestCases))]
+    public void ParallelImplementation_Matches_OptimizedSequential(ConvolutionTestCase testCase, string _, double[,] kernel)
+    {
+        if (!testCase.ToString().Contains("Parallel"))
+        {
+            return;
+        }
+
+        using var sourceImage = (Image<Rgb24>)testCase.ImageGenerator(testCase.Width, testCase.Height);
+
+        using var expected = ConvolutionAlgorithm.ApplyOptimized(sourceImage, kernel);
+
+        using var actual = (Image<Rgb24>)testCase.ApplyConvolution(sourceImage, kernel);
+
+        AssertImagesAreEqual(expected, actual);
     }
 }

@@ -65,11 +65,3 @@ public class ConvolutionBenchmark
         using var result = ConvolutionAlgorithm.ApplyOptimized(_sourceColorImage2, _kernel);
     }
 }
-
-public class Program
-{
-    public static void Main(string[] args)
-    {
-        var summary = BenchmarkRunner.Run<ConvolutionBenchmark>();
-    }
-}
