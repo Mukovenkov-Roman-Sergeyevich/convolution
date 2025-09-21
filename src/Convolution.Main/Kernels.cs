@@ -67,15 +67,6 @@ public static class Kernels
         { -1, -1, -1, -1, -1 }
     };
 
-        public static readonly double[,] Random =
-    {
-   {0,  0, -1,  0,  0},
-   {0,  0, -1,  0,  0},
-   {0,  0,  4,  0,  0},
-   {0,  0, -1,  0,  0},
-   {0,  0, -1,  0,  0}
-    };
-
     public static double[,] GetKernelByName(string name)
     {
         return name.ToLowerInvariant() switch
@@ -89,7 +80,6 @@ public static class Kernels
             "sobely"        => SobelY,
             "laplacian3x3"  => Laplacian3x3,
             "laplacian5x5"  => Laplacian5x5,
-            "random"        => Random,
             _ => throw new ArgumentException($"Test setup error: Kernel '{name}' is not known.")
         };
     }

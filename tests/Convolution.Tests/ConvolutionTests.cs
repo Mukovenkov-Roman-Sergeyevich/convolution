@@ -378,7 +378,7 @@ public class ConvolutionTests
             { "Laplacian3x3", Kernels.Laplacian3x3 },
             { "Laplacian5x5", Kernels.Laplacian5x5 },
             { "SobelX", Kernels.SobelX },
-            { "SobelY", Kernels.SobelY },
+            { "SobelY", Kernels.SobelY }
         };
 
         foreach (var testCase in baseCases)
